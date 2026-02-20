@@ -12,6 +12,8 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Canvas Confetti for Success Effect -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <style>
         body {
             margin: 0;
@@ -45,6 +47,19 @@
             opacity: 1;
             transform: translateY(0);
         }
+
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+        }
+
+        /* 成功動畫縮放 */
+        @keyframes successPop {
+            0% { transform: scale(0.5); opacity: 0; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animate-success-pop { animation: successPop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
     </style>
 </head>
 <body class="bg-[#F0F2F5] text-[#1C1E21]">
@@ -57,7 +72,6 @@
     <script type="text/babel">
         const { useState, useEffect, useRef } = React;
 
-        // 修復後的 Icon 組件，使用 lucide.createIcons 方式
         const LucideIcon = ({ name, size = 24, className = "" }) => {
             const iconRef = useRef(null);
             useEffect(() => {
@@ -104,6 +118,10 @@
             const [quantity, setQuantity] = useState(1);
             const [currentBanner, setCurrentBanner] = useState(0);
             const [showCrazySaleEffect, setShowCrazySaleEffect] = useState(false);
+            const [isMenuOpen, setIsMenuOpen] = useState(false);
+            const [isRegModalOpen, setIsRegModalOpen] = useState(false);
+            const [isSubmitting, setIsSubmitting] = useState(false);
+            const [showSuccess, setShowSuccess] = useState(false);
 
             const banners = [
                 { url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHYwdWp4bm16YnZ3eXNxcWZ3eXFxd3lxcWZ3eXFxd3lxcWZ3eSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKVUn7iM8FMEU24/giphy.gif", title: "探索藝術與創意", sub: "專業藝術引導" },
@@ -160,10 +178,52 @@
                 }
             };
 
+            const handleRegSubmit = (e) => {
+                e.preventDefault();
+                setIsSubmitting(true);
+                // 模擬網絡延遲
+                setTimeout(() => {
+                    setIsSubmitting(false);
+                    setShowSuccess(true);
+                    
+                    // 噴射煙花特效
+                    const end = Date.now() + 3 * 1000;
+                    const colors = ['#1877F2', '#FFB7C5', '#FFD700', '#FFFFFF'];
+                    
+                    (function frame() {
+                        confetti({
+                            particleCount: 3,
+                            angle: 60,
+                            spread: 55,
+                            origin: { x: 0 },
+                            colors: colors
+                        });
+                        confetti({
+                            particleCount: 3,
+                            angle: 120,
+                            spread: 55,
+                            origin: { x: 1 },
+                            colors: colors
+                        });
+
+                        if (Date.now() < end) {
+                            requestAnimationFrame(frame);
+                        }
+                    }());
+
+                    // 3 秒後自動關閉 Modal
+                    setTimeout(() => {
+                        setShowSuccess(false);
+                        setIsRegModalOpen(false);
+                    }, 3500);
+                }, 1200);
+            };
+
             const totalPrice = cartItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
 
             return (
-                <div className="min-h-screen flex flex-col">
+                <div className="min-h-screen flex flex-col relative">
+                    {/* 劈價特效 */}
                     {showCrazySaleEffect && (
                         <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none overflow-hidden">
                             <div className="absolute inset-0 bg-red-600/80"></div>
@@ -176,9 +236,10 @@
                         </div>
                     )}
 
+                    {/* 導覽列 */}
                     <nav className="fixed top-0 left-0 right-0 z-[1000] bg-white shadow-sm h-14 border-b border-gray-200">
-                        <div className="max-w-[1200px] mx-auto h-full flex justify-between items-center px-4">
-                            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setCurrentPage('home')}>
+                        <div className="max-w-[1200px] mx-auto h-full flex justify-between items-center px-4 relative">
+                            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => {setCurrentPage('home'); setIsMenuOpen(false);}}>
                                 <div className="w-9 h-9 bg-[#FFB7C5] rounded-full flex items-center justify-center text-white"><LucideIcon name="Flower" size={20} /></div>
                                 <div className="flex flex-col -space-y-1">
                                     <span className="text-[#1877F2] font-black text-lg leading-tight">Ana’s Art N Therapy</span>
@@ -186,17 +247,39 @@
                                 </div>
                             </div>
                             <div className="flex h-full">
-                                <button onClick={() => setCurrentPage('home')} className={`px-6 md:px-14 border-b-4 transition-all ${currentPage === 'home' ? 'border-[#1877F2] text-[#1877F2]' : 'border-transparent text-gray-400'}`}>
+                                <button onClick={() => {setCurrentPage('home'); setIsMenuOpen(false);}} className={`px-6 md:px-14 border-b-4 transition-all ${currentPage === 'home' ? 'border-[#1877F2] text-[#1877F2]' : 'border-transparent text-gray-400'}`}>
                                     <LucideIcon name="Home" size={24} />
                                 </button>
-                                <button onClick={() => setCurrentPage('cart')} className={`px-6 md:px-14 border-b-4 relative transition-all ${currentPage === 'cart' ? 'border-[#1877F2] text-[#1877F2]' : 'border-transparent text-gray-400'}`}>
+                                <button onClick={() => {setCurrentPage('cart'); setIsMenuOpen(false);}} className={`px-6 md:px-14 border-b-4 relative transition-all ${currentPage === 'cart' ? 'border-[#1877F2] text-[#1877F2]' : 'border-transparent text-gray-400'}`}>
                                     <LucideIcon name="ShoppingCart" size={24} />
                                     {cartItems.length > 0 && <span className="absolute top-2 right-2 md:right-8 bg-red-600 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white font-bold">{cartItems.length}</span>}
                                 </button>
                             </div>
-                            <button className="w-9 h-9 bg-gray-100 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-200">
-                                <LucideIcon name="Menu" size={18} />
+                            <button 
+                                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                                className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${isMenuOpen ? 'bg-[#1877F2] text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                            >
+                                <LucideIcon name={isMenuOpen ? "X" : "Menu"} size={18} />
                             </button>
+
+                            {/* 下拉選單界面 */}
+                            {isMenuOpen && (
+                                <div className="absolute top-14 right-4 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <button onClick={() => {setCurrentPage('home'); setIsMenuOpen(false);}} className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left">
+                                        <LucideIcon name="Home" size={18} className="text-gray-400" />
+                                        <span className="font-bold text-gray-700">首頁動態</span>
+                                    </button>
+                                    <button onClick={() => {setCurrentPage('cart'); setIsMenuOpen(false);}} className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left">
+                                        <LucideIcon name="ShoppingCart" size={18} className="text-gray-400" />
+                                        <span className="font-bold text-gray-700">我的購物車</span>
+                                    </button>
+                                    <div className="h-px bg-gray-100 my-1 mx-2"></div>
+                                    <button onClick={() => {setIsRegModalOpen(true); setIsMenuOpen(false);}} className="w-full flex items-center space-x-3 px-4 py-3 hover:bg-red-50 transition-colors text-left group">
+                                        <LucideIcon name="Send" size={18} className="text-red-400 group-hover:text-red-600" />
+                                        <span className="font-black text-red-600">立即報名課程</span>
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     </nav>
 
@@ -213,7 +296,6 @@
                                             </div>
                                         </div>
                                     ))}
-                                    {/* Banner 導航點 */}
                                     <div className="absolute bottom-4 right-6 flex space-x-2">
                                         {banners.map((_, i) => (
                                             <button 
@@ -273,7 +355,6 @@
                                             <span className="bg-blue-100 text-[#1877F2] text-[10px] font-black px-2 py-1 rounded-md uppercase tracking-widest">{selectedItem.category}</span>
                                             <h1 className="text-3xl font-black mt-2 text-gray-900 leading-tight">{selectedItem.name}</h1>
                                         </div>
-                                        
                                         <div className="space-y-3 mb-8">
                                             {selectedItem.options.map((opt, i) => (
                                                 <button key={i} onClick={() => setSelectedOption(i)} className={`w-full p-4 rounded-2xl border-2 flex justify-between items-center transition-all ${selectedOption === i ? 'border-[#1877F2] bg-blue-50' : 'border-gray-100 hover:border-gray-300'}`}>
@@ -285,55 +366,22 @@
                                                 </button>
                                             ))}
                                         </div>
-
-                                        <div className="flex items-center justify-between mb-8 px-2">
-                                            <span className="text-gray-500 font-bold">選購數量</span>
-                                            <div className="flex items-center bg-gray-100 rounded-xl p-1.5 shadow-inner">
-                                                <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-2 bg-white rounded-lg shadow-sm hover:text-[#1877F2] transition-colors"><LucideIcon name="Minus" size={16} /></button>
-                                                <span className="w-12 text-center font-black text-lg">{quantity}</span>
-                                                <button onClick={() => setQuantity(quantity + 1)} className="p-2 bg-white rounded-lg shadow-sm hover:text-[#1877F2] transition-colors"><LucideIcon name="Plus" size={16} /></button>
-                                            </div>
-                                        </div>
-
                                         <div className="grid grid-cols-2 gap-4">
-                                            <button onClick={() => addToCart(true)} className="bg-[#1877F2] text-white py-4 rounded-2xl font-black text-lg shadow-lg hover:brightness-110 active:scale-95 transition-all">立即購買</button>
-                                            <button onClick={() => addToCart(false)} className="bg-gray-100 text-gray-700 py-4 rounded-2xl font-bold hover:bg-gray-200 active:scale-95 transition-all">加入購物車</button>
+                                            <button onClick={() => addToCart(true)} className="bg-[#1877F2] text-white py-4 rounded-2xl font-black text-lg shadow-lg hover:brightness-110 transition-all">立即購買</button>
+                                            <button onClick={() => addToCart(false)} className="bg-gray-100 text-gray-700 py-4 rounded-2xl font-bold hover:bg-gray-200 transition-all">加入購物車</button>
                                         </div>
                                     </div>
-                                </div>
-
-                                {/* 課程簡介 */}
-                                <div className="mt-8 bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
-                                    <div className="flex items-center space-x-2 mb-4 border-b pb-4">
-                                        <LucideIcon name="Info" size={20} className="text-[#1877F2]" />
-                                        <h3 className="font-black text-xl">課程簡介</h3>
-                                    </div>
-                                    <p className="text-gray-600 leading-relaxed text-[16px] whitespace-pre-line">
-                                        {selectedItem.description}
-                                        {"\n\n"}
-                                        透過這套教學工具，我們可以幫助學員：
-                                        {"\n"}• 提升專注力與小肌肉協調
-                                        {"\n"}• 強化手眼配合與視覺追蹤能力
-                                        {"\n"}• 激發創意空間想像力
-                                        {"\n"}• 在遊戲中建立成就感與自信
-                                    </p>
                                 </div>
                             </main>
                         )}
 
                         {currentPage === 'cart' && (
                             <main className="max-w-[600px] mx-auto px-4 py-8">
-                                <div className="flex items-center justify-between mb-8">
-                                    <h1 className="text-3xl font-black">您的購物籃</h1>
-                                    <span className="bg-[#1877F2] text-white px-3 py-1 rounded-full text-xs font-bold">{cartItems.length} 項項目</span>
-                                </div>
+                                <h1 className="text-3xl font-black mb-8">您的購物籃</h1>
                                 {cartItems.length === 0 ? (
                                     <div className="bg-white p-16 rounded-3xl border shadow-sm text-center">
-                                        <div className="bg-gray-50 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6">
-                                            <LucideIcon name="ShoppingCart" size={40} className="text-gray-200" />
-                                        </div>
-                                        <p className="text-gray-400 font-bold text-xl mb-8">您的購物車目前是空的</p>
-                                        <button onClick={() => setCurrentPage('home')} className="bg-[#1877F2] text-white px-10 py-4 rounded-2xl font-black shadow-lg hover:scale-105 transition-all">回動態首頁</button>
+                                        <p className="text-gray-400 font-bold text-xl mb-8">購物車目前是空的</p>
+                                        <button onClick={() => setCurrentPage('home')} className="bg-[#1877F2] text-white px-10 py-4 rounded-2xl font-black shadow-lg hover:scale-105 transition-all">回首頁逛逛</button>
                                     </div>
                                 ) : (
                                     <div className="space-y-4">
@@ -341,32 +389,25 @@
                                             {cartItems.map(item => (
                                                 <div key={item.cartId} className="p-5 flex items-center justify-between border-b last:border-0 hover:bg-gray-50 transition-colors">
                                                     <div className="flex items-center space-x-4">
-                                                        <img src={item.image} className="w-20 h-20 rounded-2xl object-cover shadow-inner border border-gray-100" />
+                                                        <img src={item.image} className="w-16 h-16 rounded-xl object-cover" />
                                                         <div>
                                                             <p className="font-black text-gray-800">{item.name}</p>
-                                                            <p className="text-xs text-[#1877F2] font-black mt-1 uppercase tracking-wider">{item.label}</p>
-                                                            <div className="flex items-center space-x-3 mt-1">
-                                                                <span className="text-gray-400 text-xs">數量: {item.qty}</span>
-                                                                <span className="text-red-600 font-black">HK$ {item.price * item.qty}</span>
-                                                            </div>
+                                                            <p className="text-red-600 font-black">HK$ {item.price * item.qty}</p>
                                                         </div>
                                                     </div>
-                                                    <button onClick={() => setCartItems(prev => prev.filter(i => i.cartId !== item.cartId))} className="p-3 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all">
-                                                        <LucideIcon name="Trash2" size={20} />
+                                                    <button onClick={() => setCartItems(prev => prev.filter(i => i.cartId !== item.cartId))} className="p-2 text-gray-300 hover:text-red-500">
+                                                        <LucideIcon name="Trash2" size={18} />
                                                     </button>
                                                 </div>
                                             ))}
                                         </div>
-                                        <div className="bg-white p-8 rounded-3xl border shadow-xl flex flex-col">
+                                        <div className="bg-white p-8 rounded-3xl border shadow-xl">
                                             <div className="flex justify-between items-center mb-8">
-                                                <div className="flex flex-col">
-                                                    <span className="text-gray-500 font-bold uppercase text-xs tracking-widest">應付總額</span>
-                                                    <span className="text-sm text-gray-400 font-bold">已含限時折扣</span>
-                                                </div>
+                                                <span className="text-gray-500 font-bold">應付總額</span>
                                                 <span className="text-4xl font-black text-gray-900 italic">HK$ {totalPrice}</span>
                                             </div>
-                                            <button className="w-full bg-[#1877F2] text-white py-5 rounded-2xl font-black text-xl shadow-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center">
-                                                <span>結帳付款</span>
+                                            <button onClick={() => setIsRegModalOpen(true)} className="w-full bg-[#1877F2] text-white py-5 rounded-2xl font-black text-xl shadow-lg hover:brightness-110 transition-all flex items-center justify-center">
+                                                <span>結帳並報名</span>
                                                 <LucideIcon name="ChevronRight" size={20} className="ml-2" />
                                             </button>
                                         </div>
@@ -375,6 +416,86 @@
                             </main>
                         )}
                     </div>
+
+                    {/* 報名表單 Modal */}
+                    {isRegModalOpen && (
+                        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 modal-overlay overflow-y-auto">
+                            <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-200">
+                                {showSuccess ? (
+                                    <div className="p-12 text-center animate-success-pop flex flex-col items-center">
+                                        <div className="w-24 h-24 bg-green-100 rounded-full flex items-center justify-center mb-6 text-green-500">
+                                            <LucideIcon name="CheckCircle" size={60} />
+                                        </div>
+                                        <h2 className="text-3xl font-black text-gray-900 mb-2">報名提交成功！</h2>
+                                        <div className="w-12 h-1.5 bg-[#FFB7C5] rounded-full mb-4"></div>
+                                        <p className="text-gray-600 font-bold text-lg mb-1">感謝您的支持</p>
+                                        <p className="text-gray-400 font-medium">中心導師將於 24 小時內</p>
+                                        <p className="text-gray-400 font-medium italic">透過電話或 WhatsApp 與您聯繫</p>
+                                        
+                                        <button 
+                                            onClick={() => {setShowSuccess(false); setIsRegModalOpen(false);}}
+                                            className="mt-8 bg-gray-100 hover:bg-gray-200 text-gray-600 px-8 py-3 rounded-2xl font-black transition-all"
+                                        >
+                                            好的
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <div className="bg-[#1877F2] p-8 text-white flex justify-between items-start">
+                                            <div>
+                                                <div className="flex items-center space-x-2 mb-1">
+                                                    <LucideIcon name="Sparkles" size={16} className="text-yellow-300" />
+                                                    <span className="text-blue-100 text-[10px] font-black uppercase tracking-[0.2em]">Course Registration</span>
+                                                </div>
+                                                <h2 className="text-3xl font-black tracking-tighter">立即預約課程</h2>
+                                            </div>
+                                            <button onClick={() => setIsRegModalOpen(false)} className="p-2 hover:bg-white/20 rounded-full transition-colors">
+                                                <LucideIcon name="X" size={24} />
+                                            </button>
+                                        </div>
+                                        <form onSubmit={handleRegSubmit} className="p-8 space-y-5">
+                                            <div>
+                                                <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">學員全名</label>
+                                                <input required type="text" placeholder="輸入中文或英文姓名" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl p-4 focus:border-[#1877F2] focus:ring-0 outline-none transition-all font-bold placeholder:text-gray-300" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">聯絡電話 (WhatsApp)</label>
+                                                <input required type="tel" placeholder="手提電話號碼" className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl p-4 focus:border-[#1877F2] focus:ring-0 outline-none transition-all font-bold placeholder:text-gray-300" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-1.5 ml-1">心儀課程</label>
+                                                <div className="relative">
+                                                    <select className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl p-4 focus:border-[#1877F2] outline-none transition-all font-bold appearance-none cursor-pointer">
+                                                        <option>Six Bricks 六色積木 (限時 $780)</option>
+                                                        <option>藝術療癒與遊戲治療</option>
+                                                        <option>親子工作坊</option>
+                                                    </select>
+                                                    <LucideIcon name="ChevronDown" size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                                                </div>
+                                            </div>
+                                            <button 
+                                                disabled={isSubmitting}
+                                                className={`w-full py-5 rounded-2xl font-black text-xl shadow-xl transition-all flex items-center justify-center space-x-3 group ${isSubmitting ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-red-600 text-white hover:bg-red-700 active:scale-95'}`}
+                                            >
+                                                {isSubmitting ? (
+                                                    <div className="w-6 h-6 border-4 border-gray-300 border-t-gray-500 rounded-full animate-spin"></div>
+                                                ) : (
+                                                    <>
+                                                        <span>確認並發送報名</span>
+                                                        <LucideIcon name="ArrowRight" size={20} className="group-hover:translate-x-1 transition-transform" />
+                                                    </>
+                                                )}
+                                            </button>
+                                            <div className="flex items-center justify-center space-x-2 py-2">
+                                                <LucideIcon name="ShieldCheck" size={14} className="text-green-500" />
+                                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">您的資料將會受到嚴格保密</span>
+                                            </div>
+                                        </form>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
                 </div>
             );
         }
