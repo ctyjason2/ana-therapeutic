@@ -1,356 +1,289 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Menu, ShoppingCart, X, ChevronRight, CheckCircle2, Flower, Minus, Plus, Heart, Check, ArrowLeft, Trash2, ChevronLeft, Zap, ThumbsUp, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>安盈藝術劈價版 - 官方網站</title>
+    <!-- 使用 Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & Babel for Browser Rendering -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @keyframes crazyShake { 
+            0% { transform: scale(1) rotate(0deg); } 
+            25% { transform: scale(1.05) rotate(1deg); } 
+            50% { transform: scale(1) rotate(-1deg); } 
+            75% { transform: scale(1.05) rotate(0.5deg); } 
+            100% { transform: scale(1) rotate(0deg); } 
+        }
+        .animate-crazy-shake { animation: crazyShake 0.15s infinite; }
+        
+        @keyframes moneyRain { 
+            0% { transform: translateY(-120vh) rotate(0deg); opacity: 1; } 
+            100% { transform: translateY(120vh) rotate(720deg); opacity: 0; } 
+        }
+        .animate-money-rain { animation: moneyRain 2.5s linear forwards; }
+        
+        .fade-in-section {
+            opacity: 0;
+            transform: translateY(20vh);
+            visibility: hidden;
+            transition: opacity 0.6s ease-out, transform 1.2s ease-out;
+            will-change: opacity, transform;
+        }
+        .fade-in-section.is-visible {
+            opacity: 1;
+            transform: none;
+            visibility: visible;
+        }
+    </style>
+</head>
+<body class="bg-[#F0F2F5] text-[#1C1E21]">
+    <div id="root"></div>
 
-// --- Firebase 配置 ---
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'ana-therapeutic-fb-style';
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
 
-// 捲動顯示組件
-const FadeInItem = ({ children, delay = 0 }) => {
-  const [isVisible, setIsVisible] = useState(false);
-  const domRef = useRef();
+        // 圖示組件（因為 CDN 版本不支援 Lucide React Component，我們直接使用 SVG）
+        const Icon = ({ name, size = 24, className = "", fill = "none" }) => {
+            const [svg, setSvg] = useState("");
+            useEffect(() => {
+                const icon = lucide.icons[name];
+                if (icon) {
+                    const attrs = { ...icon[1], width: size, height: size, class: className, fill: fill };
+                    const paths = icon[2].map(tag => `<${tag[0]} ${Object.entries(tag[1]).map(([k,v]) => `${k}="${v}"`).join(' ')} />`).join('');
+                    setSvg(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`);
+                }
+            }, [name, size, className, fill]);
+            return <span dangerouslySetInnerHTML={{ __html: svg }} />;
+        };
 
-  useEffect(() => {
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) setIsVisible(true);
-      });
-    });
-    observer.observe(domRef.current);
-    return () => observer.unobserve(domRef.current);
-  }, []);
-
-  return (
-    <div
-      ref={domRef}
-      className={`transition-all duration-700 transform ${
-        isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
-      }`}
-      style={{ transitionDelay: `${delay}ms` }}
-    >
-      {children}
-    </div>
-  );
-};
-
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [currentPage, setCurrentPage] = useState('home'); 
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [cartItems, setCartItems] = useState([]);
-  const [selectedOption, setSelectedOption] = useState(0);
-  const [activeImageIdx, setActiveImageIdx] = useState(0);
-  const [quantity, setQuantity] = useState(1);
-  
-  // 輪播與特效狀態
-  const [currentBanner, setCurrentBanner] = useState(0);
-  const [showCrazySaleEffect, setShowCrazySaleEffect] = useState(false);
-
-  const banners = [
-    {
-      url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHYwdWp4bm16YnZ3eXNxcWZ3eXFxd3lxcWZ3eXFxd3lxcWZ3eSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKVUn7iM8FMEU24/giphy.gif",
-      title: "探索藝術與創意",
-      sub: "專業藝術引導"
-    },
-    {
-      url: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&q=80&w=2071",
-      title: "限時劈價 $780",
-      sub: "名額有限，立即報名"
-    },
-    {
-      url: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&q=80&w=1972",
-      title: "建立自信與療癒",
-      sub: "溫馨成長空間"
-    }
-  ];
-
-  const masterProduct = {
-    name: "六色積木創意學習系列課程",
-    category: "課程系列",
-    images: ["https://img.boutirapp.com/i/B659fL9Yy1A3G3aTyKtqERoIJHfl48Z8TwyV6Je4RsN=sxs"],
-    options: [
-      { label: "初階課程 (基礎引導)", price: 1400, salePrice: 780 },
-      { label: "進階課程 (深度應用)", price: 1600, salePrice: 1480 }
-    ],
-    description: "由南非引進的 Six Bricks 六色積木工具，旨在引發兒童的學習興趣。這是一套全面且充滿趣味的教學工具。透過六色積木，我們可以提升兒童的小肌肉協調能力、強化手眼配合與視覺追蹤。"
-  };
-
-  const productList = Array(12).fill(null).map((_, i) => ({
-    ...masterProduct,
-    id: `item-${i}`,
-    name: i === 0 ? masterProduct.name : `${masterProduct.name} (組合 ${i + 1})`
-  }));
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentBanner(prev => (prev + 1) % banners.length);
-    }, 4000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    const initAuth = async () => {
-      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-        await signInWithCustomToken(auth, __initial_auth_token);
-      } else {
-        await signInAnonymously(auth);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, setUser);
-    return () => unsubscribe();
-  }, []);
-
-  const handleProductClick = (product) => {
-    setSelectedItem(product);
-    setCurrentPage('item');
-    setQuantity(1);
-    setSelectedOption(0);
-    setActiveImageIdx(0);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-
-    setShowCrazySaleEffect(true);
-    setTimeout(() => setShowCrazySaleEffect(false), 3000);
-  };
-
-  const handleAddToCart = (directToCart = false) => {
-    const currentPriceInfo = selectedItem.options[selectedOption];
-    const newItem = { 
-      ...selectedItem, 
-      cartId: Date.now(), 
-      selectedQty: quantity,
-      selectedLabel: currentPriceInfo.label,
-      finalPrice: currentPriceInfo.salePrice
-    };
-    setCartItems(prev => [...prev, newItem]);
-    if (directToCart) setCurrentPage('cart');
-  };
-
-  // --- 全屏瘋狂劈價特效 ---
-  const CrazySaleEffect = () => (
-    <div className="fixed inset-0 z-[5000] flex items-center justify-center pointer-events-none">
-      <div className="absolute inset-0 bg-red-600/90 animate-pulse"></div>
-      <div className="absolute inset-0">
-        {[...Array(50)].map((_, i) => (
-          <div key={i} className="absolute animate-money-rain text-4xl" style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 2}s`
-          }}>
-            {i % 2 === 0 ? '💰' : '✨'}
-          </div>
-        ))}
-      </div>
-      <div className="relative text-center animate-crazy-shake">
-        <h2 className="text-white text-6xl md:text-9xl font-black italic tracking-tighter drop-shadow-2xl">
-          瘋狂劈價!!!
-        </h2>
-        <div className="mt-4 bg-yellow-400 text-red-600 text-7xl md:text-[10rem] font-black rounded-3xl px-12 py-4 shadow-[10px_10px_0px_#000] inline-block transform -rotate-2">
-          HKD 780
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="min-h-screen bg-[#F0F2F5] text-[#1C1E21] font-sans">
-      {showCrazySaleEffect && <CrazySaleEffect />}
-
-      {/* FB Style Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-[100] bg-white shadow-md h-14 flex items-center px-4">
-        <div className="max-w-[1200px] mx-auto w-full flex justify-between items-center">
-          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setCurrentPage('home')}>
-             <div className="w-10 h-10 bg-[#1877F2] rounded-full flex items-center justify-center text-white shadow-sm">
-                <Flower size={24} fill="currentColor" />
-             </div>
-             <span className="text-[#1877F2] font-black text-2xl tracking-tighter hidden sm:block">ana.art</span>
-          </div>
-          
-          <div className="flex space-x-2 md:space-x-8">
-             <button onClick={() => setCurrentPage('home')} className={`p-2 px-6 md:px-12 border-b-4 transition-all ${currentPage === 'home' ? 'border-[#1877F2] text-[#1877F2]' : 'border-transparent text-gray-500 hover:bg-gray-100 rounded-lg'}`}>
-                <Zap size={24} />
-             </button>
-             <button onClick={() => setCurrentPage('cart')} className={`p-2 px-6 md:px-12 border-b-4 transition-all relative ${currentPage === 'cart' ? 'border-[#1877F2] text-[#1877F2]' : 'border-transparent text-gray-500 hover:bg-gray-100 rounded-lg'}`}>
-                <ShoppingCart size={24} />
-                {cartItems.length > 0 && <span className="absolute top-1 right-1 sm:right-6 bg-red-500 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">{cartItems.length}</span>}
-             </button>
-          </div>
-
-          <div className="flex items-center space-x-2">
-             <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-600"><Menu size={20} /></div>
-          </div>
-        </div>
-      </nav>
-
-      {/* 內容 */}
-      <div className="pt-14 pb-20">
-        {currentPage === 'home' && (
-          <main className="max-w-[680px] mx-auto">
-            {/* Banner Carousel (FB Story/Ad Style) */}
-            <div className="relative h-64 md:h-80 w-full mb-4 overflow-hidden shadow-sm bg-white md:rounded-b-xl">
-              {banners.map((b, i) => (
-                <div key={i} className={`absolute inset-0 transition-opacity duration-1000 ${currentBanner === i ? 'opacity-100' : 'opacity-0'}`}>
-                   <img src={b.url} className="w-full h-full object-cover" />
-                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex flex-col justify-end p-6">
-                      <h2 className="text-white text-2xl font-bold">{b.title}</h2>
-                      <p className="text-white/80 text-sm">{b.sub}</p>
-                   </div>
+        const FadeInItem = ({ children }) => {
+            const domRef = useRef();
+            const [isVisible, setVisible] = useState(false);
+            useEffect(() => {
+                const observer = new IntersectionObserver(entries => {
+                    entries.forEach(entry => setVisible(entry.isIntersecting));
+                });
+                observer.observe(domRef.current);
+                return () => observer.disconnect();
+            }, []);
+            return (
+                <div ref={domRef} className={`fade-in-section ${isVisible ? 'is-visible' : ''}`}>
+                    {children}
                 </div>
-              ))}
-            </div>
+            );
+        };
 
-            {/* Product Feed */}
-            <div className="space-y-4 px-2 md:px-0">
-              {productList.map((product, idx) => (
-                <FadeInItem key={product.id} delay={idx % 3 * 100}>
-                  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    {/* FB Post Header */}
-                    <div className="p-3 flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                         <div className="w-10 h-10 bg-[#FFB7C5] rounded-full flex items-center justify-center text-white"><Flower size={20} /></div>
-                         <div>
-                            <p className="font-bold text-sm hover:underline cursor-pointer">安盈藝術與遊戲療癒</p>
-                            <p className="text-xs text-gray-500 flex items-center">贊助 · <Zap size={10} className="ml-1 fill-gray-500" /></p>
-                         </div>
-                      </div>
-                      <button className="text-gray-500"><MoreHorizontal size={20} /></button>
-                    </div>
+        function App() {
+            const [currentPage, setCurrentPage] = useState('home');
+            const [selectedItem, setSelectedItem] = useState(null);
+            const [cartItems, setCartItems] = useState([]);
+            const [selectedOption, setSelectedOption] = useState(0);
+            const [quantity, setQuantity] = useState(1);
+            const [currentBanner, setCurrentBanner] = useState(0);
+            const [showCrazySaleEffect, setShowCrazySaleEffect] = useState(false);
 
-                    {/* FB Post Content */}
-                    <div className="px-3 pb-3">
-                       <p className="text-sm text-gray-800 mb-2">🔥 瘋狂劈價進行中！全場低至 $780，啟發孩子創意！</p>
-                    </div>
+            const banners = [
+                { url: "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHYwdWp4bm16YnZ3eXNxcWZ3eXFxd3lxcWZ3eXFxd3lxcWZ3eSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7TKVUn7iM8FMEU24/giphy.gif", title: "探索藝術與創意", sub: "專業藝術引導" },
+                { url: "https://images.unsplash.com/photo-1513364776144-60967b0f800f?auto=format&fit=crop&q=80&w=2071", title: "限時劈價 $780", sub: "名額有限，立即報名" },
+                { url: "https://images.unsplash.com/photo-1503454537195-1dcabb73ffb9?auto=format&fit=crop&q=80&w=1972", title: "建立自信與療癒", sub: "溫馨成長空間" }
+            ];
 
-                    {/* Post Image */}
-                    <div className="relative aspect-[4/3] bg-gray-100 cursor-pointer" onClick={() => handleProductClick(product)}>
-                       <img src={product.images[0]} className="w-full h-full object-cover" />
-                       <div className="absolute top-4 left-4 bg-red-600 text-white font-black px-4 py-1 rounded-sm text-lg transform -rotate-1 shadow-lg">劈價 $780</div>
-                    </div>
+            const masterProduct = {
+                category: "課程系列",
+                images: ["https://img.boutirapp.com/i/B659fL9Yy1A3G3aTyKtqERoIJHfl48Z8TwyV6Je4RsN=sxs"],
+                options: [
+                    { label: "初階課程 (基礎引導)", price: 1400, salePrice: 780 },
+                    { label: "進階課程 (深度應用)", price: 1600, salePrice: 1480 }
+                ],
+                description: "由南非引進的 Six Bricks 六色積木工具，旨在引發兒童的學習興趣。這是一套全面且充滿趣味的教學工具。透過六色積木，我們可以提升兒童的小肌肉協調能力、強化手眼配合與視覺追蹤。"
+            };
 
-                    {/* FB Post Footer Info */}
-                    <div className="p-3 bg-[#F0F2F5] flex justify-between items-center border-t border-gray-100">
-                       <div className="flex-1">
-                          <p className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">{product.category}</p>
-                          <h3 className="font-bold text-lg leading-tight">{product.name}</h3>
-                       </div>
-                       <button onClick={() => handleProductClick(product)} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold px-4 py-2 rounded-lg text-sm transition-colors">
-                          去逛逛
-                       </button>
-                    </div>
+            const productList = Array(12).fill(null).map((_, i) => ({
+                ...masterProduct,
+                id: `item-${i}`,
+                name: i === 0 ? "六色積木創意學習系列課程" : `六色積木創意學習 (專案 ${i + 1})`
+            }));
 
-                    {/* Interaction Bar */}
-                    <div className="px-4 py-1 flex justify-between border-t border-gray-100 text-gray-500 text-sm">
-                       <button className="flex items-center space-x-2 py-2 flex-1 justify-center hover:bg-gray-50 rounded-lg"><ThumbsUp size={18} /><span>讚</span></button>
-                       <button className="flex items-center space-x-2 py-2 flex-1 justify-center hover:bg-gray-50 rounded-lg"><MessageCircle size={18} /><span>回應</span></button>
-                       <button className="flex items-center space-x-2 py-2 flex-1 justify-center hover:bg-gray-50 rounded-lg"><Share2 size={18} /><span>分享</span></button>
-                    </div>
-                  </div>
-                </FadeInItem>
-              ))}
-            </div>
-          </main>
-        )}
+            useEffect(() => {
+                const timer = setInterval(() => setCurrentBanner(prev => (prev + 1) % banners.length), 4000);
+                return () => clearInterval(timer);
+            }, []);
 
-        {currentPage === 'item' && selectedItem && (
-          <main className="max-w-[800px] mx-auto px-4 py-8 animate-in fade-in duration-500">
-            <button onClick={() => setCurrentPage('home')} className="mb-6 flex items-center text-[#1877F2] font-bold">
-               <ArrowLeft size={20} className="mr-2" /> 返回動態消息
-            </button>
-            <div className="bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden">
-               <div className="grid grid-cols-1 md:grid-cols-2">
-                  <div className="relative aspect-square">
-                     <img src={selectedItem.images[activeImageIdx]} className="w-full h-full object-cover" />
-                     <div className="absolute top-6 left-6 bg-yellow-400 text-red-600 font-black px-6 py-2 rounded-xl text-2xl shadow-xl border-4 border-red-600 transform -rotate-3">
-                        劈價 $780
-                     </div>
-                  </div>
-                  <div className="p-8">
-                     <h1 className="text-3xl font-black mb-4 leading-tight">{selectedItem.name}</h1>
-                     <div className="space-y-3 mb-8">
-                        {selectedItem.options.map((opt, i) => (
-                           <button key={i} onClick={() => setSelectedOption(i)} className={`w-full p-4 rounded-xl border-2 text-left transition-all flex justify-between items-center ${selectedOption === i ? 'border-[#1877F2] bg-blue-50' : 'border-gray-100 hover:border-gray-200'}`}>
-                              <span className={`font-bold ${selectedOption === i ? 'text-[#1877F2]' : 'text-gray-700'}`}>{opt.label}</span>
-                              <div className="text-right">
-                                 <span className="block font-black text-xl text-red-600">HKD {opt.salePrice}</span>
-                                 <span className="block text-xs text-gray-400 line-through">HKD {opt.price}</span>
-                              </div>
-                           </button>
-                        ))}
-                     </div>
-                     <div className="flex items-center space-x-4 mb-8">
-                        <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50">
-                           <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-3 text-gray-500 hover:text-black"><Minus size={16} /></button>
-                           <span className="px-4 font-bold">{quantity}</span>
-                           <button onClick={() => setQuantity(quantity + 1)} className="p-3 text-gray-500 hover:text-black"><Plus size={16} /></button>
-                        </div>
-                     </div>
-                     <div className="grid grid-cols-1 gap-3">
-                        <button onClick={() => handleAddToCart(true)} className="w-full bg-[#1877F2] text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-blue-600 transition-all active:scale-95">
-                           立即購買
-                        </button>
-                        <button onClick={() => handleAddToCart(false)} className="w-full bg-gray-100 text-gray-700 py-4 rounded-xl font-bold text-lg hover:bg-gray-200 transition-all">
-                           加入購物車
-                        </button>
-                     </div>
-                  </div>
-               </div>
-               <div className="p-8 border-t border-gray-100">
-                  <h3 className="font-bold text-xl mb-4">課程詳情</h3>
-                  <p className="text-gray-600 leading-relaxed">{selectedItem.description}</p>
-               </div>
-            </div>
-          </main>
-        )}
+            const handleProductClick = (product) => {
+                setSelectedItem(product);
+                setCurrentPage('item');
+                setQuantity(1);
+                setSelectedOption(0);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                setShowCrazySaleEffect(true);
+                setTimeout(() => setShowCrazySaleEffect(false), 2500);
+            };
 
-        {currentPage === 'cart' && (
-          <main className="max-w-[680px] mx-auto px-4 py-8 animate-in slide-in-from-bottom duration-500">
-            <h1 className="text-3xl font-black mb-8">我的購物車 ({cartItems.length})</h1>
-            {cartItems.length === 0 ? (
-              <div className="bg-white p-20 rounded-2xl shadow-sm text-center border border-gray-200">
-                 <ShoppingCart size={64} className="mx-auto text-gray-200 mb-6" />
-                 <p className="text-gray-400 font-bold text-xl mb-8">購物車目前沒有商品</p>
-                 <button onClick={() => setCurrentPage('home')} className="bg-[#1877F2] text-white px-10 py-3 rounded-lg font-bold">前往商城</button>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                 <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-                    {cartItems.map((item) => (
-                      <div key={item.cartId} className="p-6 flex items-center justify-between border-b border-gray-100 last:border-0">
-                         <div className="flex items-center space-x-4">
-                            <img src={item.images[0]} className="w-16 h-16 object-cover rounded-lg" />
-                            <div>
-                               <p className="font-bold text-gray-800">{item.name}</p>
-                               <p className="text-xs font-bold text-[#1877F2]">{item.selectedLabel}</p>
-                               <p className="text-sm text-gray-500 mt-1">HKD {item.finalPrice} x {item.selectedQty}</p>
+            const addToCart = (directToCart = false) => {
+                const opt = selectedItem.options[selectedOption];
+                const newItem = {
+                    cartId: Date.now() + Math.random(),
+                    name: selectedItem.name,
+                    image: selectedItem.images[0],
+                    qty: quantity,
+                    label: opt.label,
+                    price: opt.salePrice
+                };
+                setCartItems(prev => [...prev, newItem]);
+                if (directToCart) {
+                    setCurrentPage('cart');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            };
+
+            const totalPrice = cartItems.reduce((acc, i) => acc + (i.price * i.qty), 0);
+
+            return (
+                <div className="min-h-screen">
+                    {showCrazySaleEffect && (
+                        <div className="fixed inset-0 z-[9999] flex items-center justify-center pointer-events-none overflow-hidden">
+                            <div className="absolute inset-0 bg-red-600/80 animate-pulse"></div>
+                            {[...Array(30)].map((_, i) => (
+                                <div key={i} className="absolute animate-money-rain text-4xl" style={{ left: `${Math.random() * 100}%`, animationDelay: `${Math.random()}s` }}>💰</div>
+                            ))}
+                            <div className="relative text-center animate-crazy-shake">
+                                <div className="bg-yellow-400 text-red-600 text-6xl md:text-9xl font-black rounded-3xl px-12 py-6 shadow-[12px_12px_0px_#000] border-8 border-black transform -rotate-3">劈價 $780</div>
                             </div>
-                         </div>
-                         <button onClick={() => setCartItems(prev => prev.filter(i => i.cartId !== item.cartId))} className="p-2 text-gray-300 hover:text-red-500"><Trash2 size={20} /></button>
-                      </div>
-                    ))}
-                 </div>
-                 <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm flex flex-col items-end">
-                    <p className="text-gray-500 font-bold mb-1">總金額</p>
-                    <p className="text-4xl font-black text-gray-900 mb-6">HKD {cartItems.reduce((acc, item) => acc + (item.finalPrice * item.selectedQty), 0)}</p>
-                    <button className="w-full sm:w-auto bg-[#1877F2] text-white px-20 py-4 rounded-xl font-bold text-xl shadow-lg">結帳</button>
-                 </div>
-              </div>
-            )}
-          </main>
-        )}
-      </div>
+                        </div>
+                    )}
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes crazyShake { 0% { transform: scale(1) rotate(0deg); } 25% { transform: scale(1.1) rotate(2deg); } 50% { transform: scale(1) rotate(-2deg); } 75% { transform: scale(1.1) rotate(1deg); } 100% { transform: scale(1) rotate(0deg); } }
-        .animate-crazy-shake { animation: crazyShake 0.1s infinite; }
-        @keyframes moneyRain { 0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(360deg); opacity: 0; } }
-        .animate-money-rain { animation: moneyRain 2s linear forwards; }
-      `}} />
-    </div>
-  );
-}
+                    <nav className="fixed top-0 left-0 right-0 z-[1000] bg-white/95 backdrop-blur-md shadow-sm h-14 border-b border-gray-200">
+                        <div className="max-w-[1200px] mx-auto h-full flex justify-between items-center px-4">
+                            <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setCurrentPage('home')}>
+                                <div className="w-10 h-10 bg-[#1877F2] rounded-full flex items-center justify-center text-white"><Icon name="Flower" fill="currentColor" /></div>
+                                <span className="text-[#1877F2] font-black text-2xl tracking-tighter hidden sm:block">ana.art</span>
+                            </div>
+                            <div className="flex h-full">
+                                <button onClick={() => setCurrentPage('home')} className={`px-8 md:px-16 border-b-4 ${currentPage === 'home' ? 'border-[#1877F2] text-[#1877F2]' : 'border-transparent text-gray-500'}`}>
+                                    <Icon name="Zap" fill={currentPage === 'home' ? 'currentColor' : 'none'} />
+                                </button>
+                                <button onClick={() => setCurrentPage('cart')} className={`px-8 md:px-16 border-b-4 relative ${currentPage === 'cart' ? 'border-[#1877F2] text-[#1877F2]' : 'border-transparent text-gray-500'}`}>
+                                    <Icon name="ShoppingCart" fill={currentPage === 'cart' ? 'currentColor' : 'none'} />
+                                    {cartItems.length > 0 && <span className="absolute top-2 right-4 md:right-12 bg-red-600 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">{cartItems.length}</span>}
+                                </button>
+                            </div>
+                            <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center"><Icon name="Menu" size={20} /></div>
+                        </div>
+                    </nav>
+
+                    <div className="pt-14 pb-20">
+                        {currentPage === 'home' && (
+                            <main className="max-w-[680px] mx-auto">
+                                <div className="relative h-56 md:h-80 w-full overflow-hidden shadow-sm bg-gray-200 md:rounded-b-xl border-b">
+                                    {banners.map((b, i) => (
+                                        <div key={i} className={`absolute inset-0 transition-opacity duration-1000 ${currentBanner === i ? 'opacity-100' : 'opacity-0'}`}>
+                                            <img src={b.url} className="w-full h-full object-cover" />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 p-6 flex flex-col justify-end">
+                                                <h2 className="text-white text-2xl font-black italic">{b.title}</h2>
+                                                <p className="text-yellow-400 font-bold">{b.sub}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-4 space-y-4">
+                                    {productList.map(product => (
+                                        <FadeInItem key={product.id}>
+                                            <div className="bg-white md:rounded-xl shadow-sm border-y md:border border-gray-200 overflow-hidden">
+                                                <div className="p-3 flex items-center justify-between">
+                                                    <div className="flex items-center space-x-3">
+                                                        <div className="w-10 h-10 bg-[#FFB7C5] rounded-full flex items-center justify-center text-white"><Icon name="Flower" /></div>
+                                                        <div><p className="font-bold text-sm">安盈藝術與遊戲療癒</p><p className="text-[11px] text-gray-500">贊助</p></div>
+                                                    </div>
+                                                </div>
+                                                <div className="px-4 pb-3 text-[15px]">🔥 <span className="font-bold">【限時劈價】</span> 只需 <span className="text-red-600 font-black">$780</span>！</div>
+                                                <div className="cursor-pointer" onClick={() => handleProductClick(product)}>
+                                                    <img src={product.images[0]} className="w-full h-auto" />
+                                                </div>
+                                                <div className="p-4 bg-[#F0F2F5] flex justify-between items-center">
+                                                    <div><p className="text-[11px] font-bold uppercase text-gray-500">{product.category}</p><h3 className="font-bold text-lg">{product.name}</h3></div>
+                                                    <button onClick={() => handleProductClick(product)} className="bg-gray-200 px-5 py-2 rounded-lg font-bold text-sm">了解詳情</button>
+                                                </div>
+                                            </div>
+                                        </FadeInItem>
+                                    ))}
+                                </div>
+                            </main>
+                        )}
+
+                        {currentPage === 'item' && selectedItem && (
+                            <main className="max-w-[800px] mx-auto px-4 py-6">
+                                <button onClick={() => setCurrentPage('home')} className="mb-6 flex items-center text-[#1877F2] font-bold"><Icon name="ArrowLeft" className="mr-2" size={18} /> 返回首頁</button>
+                                <div className="bg-white rounded-2xl shadow-xl border overflow-hidden grid grid-cols-1 md:grid-cols-2">
+                                    <div className="bg-gray-50 flex items-center justify-center relative">
+                                        <img src={selectedItem.images[0]} className="w-full h-full object-cover" />
+                                        <div className="absolute bottom-6 left-6 bg-yellow-400 text-red-600 font-black px-6 py-2 rounded-xl text-2xl transform -rotate-3 border-4 border-black">$780 劈價中</div>
+                                    </div>
+                                    <div className="p-6 flex flex-col">
+                                        <h1 className="text-3xl font-black mb-6">{selectedItem.name}</h1>
+                                        {selectedItem.options.map((opt, i) => (
+                                            <button key={i} onClick={() => setSelectedOption(i)} className={`w-full p-4 mb-3 rounded-xl border-2 flex justify-between items-center ${selectedOption === i ? 'border-[#1877F2] bg-blue-50' : 'border-gray-100'}`}>
+                                                <span className="font-bold">{opt.label}</span>
+                                                <span className="text-red-600 font-black">HK$ {opt.salePrice}</span>
+                                            </button>
+                                        ))}
+                                        <div className="flex items-center space-x-4 my-6">
+                                            <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="p-2 bg-gray-100 rounded-lg"><Icon name="Minus" size={18} /></button>
+                                            <span className="text-xl font-bold">{quantity}</span>
+                                            <button onClick={() => setQuantity(quantity + 1)} className="p-2 bg-gray-100 rounded-lg"><Icon name="Plus" size={18} /></button>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3 mt-auto">
+                                            <button onClick={() => addToCart(true)} className="bg-[#1877F2] text-white py-4 rounded-xl font-bold shadow-lg">立即購買</button>
+                                            <button onClick={() => addToCart(false)} className="bg-gray-100 text-gray-700 py-4 rounded-xl font-bold">加入購物車</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </main>
+                        )}
+
+                        {currentPage === 'cart' && (
+                            <main className="max-w-[680px] mx-auto px-4 py-8">
+                                <h1 className="text-4xl font-black mb-8">購物籃</h1>
+                                {cartItems.length === 0 ? (
+                                    <div className="bg-white p-16 rounded-3xl text-center border">
+                                        <Icon name="ShoppingCart" size={60} className="mx-auto text-gray-200 mb-6" />
+                                        <p className="text-gray-400 font-bold text-xl mb-6">您的購物車目前是空的</p>
+                                        <button onClick={() => setCurrentPage('home')} className="bg-[#1877F2] text-white px-8 py-3 rounded-xl font-bold">回首頁逛逛</button>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-6">
+                                        <div className="bg-white rounded-3xl border overflow-hidden">
+                                            {cartItems.map(item => (
+                                                <div key={item.cartId} className="p-6 flex items-center justify-between border-b last:border-0">
+                                                    <div className="flex items-center space-x-4">
+                                                        <img src={item.image} className="w-16 h-16 rounded-xl object-cover" />
+                                                        <div><p className="font-bold">{item.name}</p><p className="text-xs text-blue-500">{item.label} x {item.qty}</p></div>
+                                                    </div>
+                                                    <button onClick={() => setCartItems(prev => prev.filter(i => i.cartId !== item.cartId))} className="text-gray-300 hover:text-red-500"><Icon name="Trash2" /></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="bg-white p-8 rounded-3xl border shadow-lg text-right">
+                                            <p className="text-gray-500 font-bold mb-2">總額</p>
+                                            <p className="text-4xl font-black mb-6">HK$ {totalPrice}</p>
+                                            <button className="w-full bg-[#1877F2] text-white py-5 rounded-2xl font-black text-xl">前往結帳</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </main>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
